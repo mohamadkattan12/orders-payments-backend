@@ -140,3 +140,13 @@ amendments").
   after applying it (interactive step); `migrate status` confirmed it applied. Use `migrate
   deploy` after hand edits. The seed upserts names/prices but never resets stock; the image runs
   migrate → seed → start. Deliveries carry `orderId` and `eventType` for per-order ordering.
+- Step 3: idempotency for checkout runs **inside the business transaction** (key insert with
+  `ON CONFLICT DO NOTHING`, effect, stored response, one commit). A concurrent request with the
+  same key blocks on the uncommitted key row and then replays the stored response, so there is no
+  visible `in_progress` state and no stuck key after a crash. Only successful responses are stored:
+  a failed request changed nothing and may be retried with the same key (Stripe stores errors too;
+  not needed here). Replays carry `Idempotent-Replayed: true`. Expired keys (24 h) are deleted
+  lazily on reuse; a periodic cleanup joins the worker in step 6. Stock rows are locked in SKU
+  order so opposite-order multi-line checkouts can't deadlock (tested). Rate limit: per IP,
+  200 / 10 s by default (`THROTTLE_LIMIT`), health exempt. VAT rounding: an exact half-halala is
+  impossible at 15/115, so "half up" never decides a result (comment in `money.ts`).

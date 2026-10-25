@@ -13,6 +13,7 @@ export default defineConfig({
     globalSetup: ['./test/support/database.ts'],
     env: {
       DATABASE_URL: admin.replace(/\/[^/]+$/, '/shop_test'),
+      THROTTLE_LIMIT: '100000',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://localhost:6380/1', // db 1: never the dev queues
     },
     fileParallelism: false, // the e2e files share one test database
