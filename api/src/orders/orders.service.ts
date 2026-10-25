@@ -6,10 +6,14 @@ import type { Prisma } from '../generated/prisma/client.js';
 import type { Tx } from '../idempotency/idempotency.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CheckoutDto } from './orders.dto.js';
+import { lockOrder, releaseStock } from './order-locks.js';
 
 export const HOLD_MS = 15 * 60 * 1000; // a checkout holds its stock for 15 minutes
 
-const withItems = { items: { orderBy: { sku: 'asc' } } } as const;
+const withItems = {
+  items: { orderBy: { sku: 'asc' } },
+  payments: { orderBy: { createdAt: 'asc' }, include: { refund: true } },
+} as const;
 type OrderWithItems = Prisma.OrderGetPayload<{ include: typeof withItems }>;
 
 export function orderView(o: OrderWithItems) {
@@ -29,6 +33,17 @@ export function orderView(o: OrderWithItems) {
     totalHalalas: o.totalHalalas,
     expiresAt: o.expiresAt.toISOString(),
     createdAt: o.createdAt.toISOString(),
+    payments: o.payments.map((p) => ({
+      id: p.id,
+      status: p.status,
+      amountHalalas: p.amountHalalas,
+      failureReason: p.failureReason,
+      refund: p.refund && {
+        id: p.refund.id,
+        status: p.refund.status,
+        reason: p.refund.reason,
+      },
+    })),
   };
 }
 
@@ -89,6 +104,43 @@ export class OrdersService {
       },
     });
     return orderView(order);
+  }
+
+  /** Customer cancel of an unpaid order: releases its stock. Cancelling twice returns the same order. */
+  async cancel(tx: Tx, id: string) {
+    const order = await lockOrder(tx, id);
+    if (order.status === 'pending_payment') {
+      const inFlight = await tx.payment.count({
+        where: { orderId: id, status: 'pending' },
+      });
+      if (inFlight)
+        throw apiError(
+          409,
+          'payment_in_progress',
+          'A payment is in progress; try again shortly.',
+        );
+      await tx.order.update({
+        where: { id },
+        data: { status: 'cancelled', version: { increment: 1 } },
+      });
+      await releaseStock(tx, id);
+      await tx.outboxEvent.create({
+        data: {
+          type: 'order.cancelled',
+          orderId: id,
+          payload: { orderId: id },
+        },
+      });
+    } else if (order.status !== 'cancelled') {
+      throw apiError(
+        409,
+        'order_not_cancellable',
+        `The order is ${order.status}.`,
+      );
+    }
+    return orderView(
+      await tx.order.findUniqueOrThrow({ where: { id }, include: withItems }),
+    );
   }
 
   async get(id: string) {

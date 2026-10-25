@@ -41,6 +41,26 @@ export class OrdersController {
     return result.body;
   }
 
+  @Post(':id/cancel')
+  async cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.idempotency.runInTransaction(
+      `cancel:${id}`,
+      key,
+      {},
+      async (tx) => ({
+        status: 200,
+        body: await this.orders.cancel(tx, id),
+      }),
+    );
+    res.status(result.status);
+    if (result.replayed) res.setHeader('Idempotent-Replayed', 'true');
+    return result.body;
+  }
+
   @Get(':id')
   get(@Param('id', ParseUUIDPipe) id: string) {
     return this.orders.get(id);

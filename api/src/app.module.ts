@@ -8,6 +8,9 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { OrdersModule } from './orders/orders.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
+import { WebhooksModule } from './webhooks/webhooks.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { OrdersModule } from './orders/orders.module.js';
     CatalogModule,
     IdempotencyModule,
     OrdersModule,
+    PaymentsModule,
+    WebhooksModule,
+    AdminModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

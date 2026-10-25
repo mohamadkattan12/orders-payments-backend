@@ -10,10 +10,11 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
-    globalSetup: ['./test/support/database.ts'],
+    globalSetup: ['./test/support/database.ts', './test/support/fakes.ts'],
     env: {
       DATABASE_URL: admin.replace(/\/[^/]+$/, '/shop_test'),
       THROTTLE_LIMIT: '100000',
+      FAKES_URL: 'http://127.0.0.1:8299',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://localhost:6380/1', // db 1: never the dev queues
     },
     fileParallelism: false, // the e2e files share one test database

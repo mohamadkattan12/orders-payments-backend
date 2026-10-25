@@ -40,16 +40,17 @@ describe('database rules (e2e)', () => {
     ).rejects.toThrow(/products_stock_nonnegative/);
   });
 
-  it('an order has at most one payment that is not failed', async () => {
+  it('an order has at most one pending payment', async () => {
     const { id: orderId } = await order();
-    const pay = (status: 'pending' | 'failed') =>
+    const pay = (status: 'pending' | 'failed' | 'succeeded') =>
       prisma.payment.create({
         data: { orderId, amountHalalas: 4500, token: 'tok_success', status },
       });
     await pay('failed');
     await pay('failed'); // retries after failures are fine
+    await pay('succeeded'); // a late extra success can exist until it is refunded
     await pay('pending');
-    await expect(pay('pending')).rejects.toThrow();
+    await expect(pay('pending')).rejects.toThrow(/Unique constraint/);
   });
 
   it('invoice numbers come from one sequence', async () => {

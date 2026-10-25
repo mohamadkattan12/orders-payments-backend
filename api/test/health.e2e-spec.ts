@@ -25,7 +25,7 @@ describe('health (e2e)', () => {
       status: 'ready',
       db: 'ok',
       redis: 'ok',
-      migrations: 1,
+      migrations: 2,
       products: PRODUCTS.length,
     });
   });

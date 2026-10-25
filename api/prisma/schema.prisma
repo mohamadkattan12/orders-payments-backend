@@ -121,7 +121,7 @@ model Payment {
   order             Order         @relation(fields: [orderId], references: [id])
   refund            Refund?
 
-  // one non-failed payment per order: partial unique index in the migration
+  // one pending payment per order: partial unique index in the migrations
   @@index([status, createdAt])
   @@map("payments")
 }

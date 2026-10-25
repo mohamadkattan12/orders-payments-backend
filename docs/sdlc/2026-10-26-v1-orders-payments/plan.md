@@ -161,3 +161,18 @@ amendments").
   advance`). Modes per system are restricted to amendment 14's list (400 otherwise). Webhook
   headers: `FakePay-Signature`, `ERP-Signature`, `Courier-Signature`, all `t=…,v1=…`. The portal
   also dedupes by invoice UUID (a business key), not only by idempotency key.
+- Step 5 (payments): **index changed** (migration `one_pending_payment_per_order`): the init
+  migration allowed one *non-failed* payment per order, which contradicts amendment 2 (a late
+  extra success must exist until refunded). The database rule is now "one *pending* payment per
+  order"; "retry only after every earlier attempt failed" is enforced in `pay()` under the order
+  lock. Pay returns **202** with the pending payment (outcome by webhook; poll `GET /orders/:id`,
+  which now lists payments and refunds). Reconciliation resubmits a payment FakePay never saw
+  (same idempotency key) while the order is payable, else marks it `failed: not_submitted`; a
+  later success is still applied and refunded. Expiry skips an order whose payment has been
+  pending for less than 4 minutes, so reconciliation settles it first (fewer refunds). Cancel is
+  refused (409 `payment_in_progress`) while a payment is pending. Webhook references that aren't
+  UUIDs are rejected as unknown before any query (project #2's malformed-id lesson). The
+  settle-vs-expiry race test first used reconciliation, whose HTTP lookup made expiry win all 30
+  rounds; it now races the two transactions with jitter and asserts both outcomes occur. The
+  api e2e suite starts the real fakes app (built from `../fakes`) on port 8299; CI installs it.
+  Jobs (reconcile, refunds, expiry) are service methods here; the worker schedules them in step 6.

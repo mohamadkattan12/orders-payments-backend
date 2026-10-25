@@ -31,6 +31,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/shop
       REDIS_URL: redis://redis:6379
+      FAKES_URL: http://fakes:8200
       PORT: "8100"
     ports: ["127.0.0.1:8100:8100"]
     depends_on:

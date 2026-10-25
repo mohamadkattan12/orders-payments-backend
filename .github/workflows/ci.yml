@@ -44,8 +44,13 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: api/pnpm-lock.yaml
+          cache-dependency-path: |
+            api/pnpm-lock.yaml
+            fakes/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # the e2e tests start the real fakes app (built from ../fakes)
+      - run: pnpm install --frozen-lockfile
+        working-directory: fakes
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
