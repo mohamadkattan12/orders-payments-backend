@@ -1,0 +1,13 @@
+// Mithal Store orders and payments. Money is integer halalas (1 SAR = 100), VAT included.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  // Pinned: the Docker build generates before tsconfig.json is copied, and Prisma would infer ".ts".
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

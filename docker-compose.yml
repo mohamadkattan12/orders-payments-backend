@@ -1,0 +1,64 @@
+# Local demo only: every port is bound to 127.0.0.1.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: shop
+    ports: ["127.0.0.1:5436:5432"]
+    volumes:
+      - db:/var/lib/postgresql/data
+      - ./docker/initdb.sql:/docker-entrypoint-initdb.d/initdb.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    # Jobs survive a restart (AOF) and are never evicted under memory pressure.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:6380:6379"]
+    volumes: [redis:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/shop
+      REDIS_URL: redis://redis:6379
+      PORT: "8100"
+    ports: ["127.0.0.1:8100:8100"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8100/health/ready"]
+      interval: 3s
+      retries: 40
+
+  fakes:
+    build: ./fakes
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fakes
+      PORT: "8200"
+    ports: ["127.0.0.1:8200:8200"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8100
+    ports: ["127.0.0.1:3200:3200"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  db:
+  redis:

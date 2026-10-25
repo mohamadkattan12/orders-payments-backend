@@ -1,0 +1,5 @@
+allowBuilds:
+  '@prisma/engines': true
+  prisma: true
+  # esbuild comes in through the test tooling; its prebuilt binary works without the install script
+  esbuild: false

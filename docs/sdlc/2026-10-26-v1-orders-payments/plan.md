@@ -88,14 +88,14 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
   before handlers are written.
 - **Workflow merge conflicts:** agents share the step-6 baseline; each touches its own module plus
   one line in the module registry. Merge order fixed; full test run after each merge.
-- **Port clashes:** 8100/8200/3100/5436/6380 avoid projects #1 and #2.
+- **Port clashes:** 8100/8200/3200/5436/6380 avoid projects #1 and #2 (3100 was taken by a local Vite server).
 - **Rejected:** Kafka (too heavy to prove the same pattern), a real gateway sandbox (decided: fake
   only), Temporal/workflow engines (hides the patterns this repo exists to show), server-side carts
   (concern 1).
 
 ## Proof
 - `docker compose up -d` → `curl -s localhost:8100/health/ready` → `{"status":"ready", …}` with
-  db, redis, migrations and seed ok; web :3100 → 200; all ports on 127.0.0.1.
+  db, redis, migrations and seed ok; web :3200 → 200; all ports on 127.0.0.1.
 - `cd api && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:e2e` → all
   pass, including every scenario in spec req 18 + amendment 14 (named tests, listed in the README).
 - `cd fakes && pnpm test && pnpm test:e2e` → pass; `cd web && pnpm lint && pnpm typecheck && pnpm
@@ -123,3 +123,14 @@ Spec-stage review (2026-10-26): independent Codex review, 14 points, all accepte
 amendments").
 
 ## Departures from plan
+- Step 1: web runs on **3200**, not 3100 (a local Vite dev server already holds 3100); spec ports
+  otherwise unchanged. NestJS 12 generates Vitest + oxlint; added `typecheck`, `format:check`,
+  `postinstall` scripts and `--passWithNoTests` until unit tests exist. pnpm 11 build decisions:
+  Prisma allowed; esbuild, `@scarf/scarf` (swagger-ui telemetry) and `msgpackr-extract` (optional
+  BullMQ native speed-up) declined. `prisma init` again downloaded Prisma agent-skill files into
+  `.claude/`, `.agents/`, `.windsurf/` + `skills-lock.json` in both apps: removed. Generator pins
+  `moduleFormat`/`importFileExtension` and `src/generated` is in `.dockerignore` (project #2's
+  clean-clone lesson). Container healthcheck uses 127.0.0.1 (`localhost` resolves to IPv6 in
+  Alpine while the API listens on IPv4). `/health/ready` checks Postgres and Redis now;
+  migrations and seed join it in step 2. Redis runs with AOF and `noeviction`; a `fakes`
+  database is created by an init script. e2e tests use `shop_test` / `fakes_test` and Redis db 1.
