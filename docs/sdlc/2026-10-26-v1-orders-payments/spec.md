@@ -1,6 +1,6 @@
 # Spec: Orders and payments backend for an online store (v1)
 
-From: intent.md (ce05b8f) · Status: flagged concerns 1–8 accepted as proposed by Mohamad Nour on 2026-10-26; amended after an independent review (see "Review amendments"), pending acceptance
+From: intent.md (ce05b8f) · Status: flagged concerns 1–8 accepted as proposed by Mohamad Nour on 2026-10-26; amended after an independent review (see "Review amendments"); spec and amendments accepted by Mohamad Nour on 2026-10-26
 Skills applied: sdlc, nestjs-patterns, prisma-patterns, database-migrations, redis-patterns,
 security-review @ ~/.claude 2bc6be4
 Produced by: `/sdlc` stage 2 for portfolio project #3, after the intent was accepted
