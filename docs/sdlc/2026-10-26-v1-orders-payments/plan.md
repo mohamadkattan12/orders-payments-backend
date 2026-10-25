@@ -150,3 +150,14 @@ amendments").
   order so opposite-order multi-line checkouts can't deadlock (tested). Rate limit: per IP,
   200 / 10 s by default (`THROTTLE_LIMIT`), health exempt. VAT rounding: an exact half-halala is
   impossible at 15/115, so "half up" never decides a result (comment in `money.ts`).
+- Step 4 (fakes): test tokens are `tok_success` and `tok_decline` only. `tok_timeout`/`tok_slow`
+  from spec req 5 are replaced by the deterministic FakePay modes `response_lost`, `slow` and
+  `webhook_lost` (amendment 14). The charge outcome is final at creation (a failed charge never
+  succeeds later); the API answers `pending` and the result arrives by webhook 200 ms later.
+  Webhooks are queued in the same transaction as the effect (so a replay never re-sends) and a
+  sender loop retries until the store answers 2xx (max 15 attempts, backoff to 10 s).
+  `out_of_order` holds a system's webhooks until `POST /control/:system/flush`, which releases
+  them newest first; courier tracking advances on command (`/control/courier/shipments/:id/
+  advance`). Modes per system are restricted to amendment 14's list (400 otherwise). Webhook
+  headers: `FakePay-Signature`, `ERP-Signature`, `Courier-Signature`, all `t=…,v1=…`. The portal
+  also dedupes by invoice UUID (a business key), not only by idempotency key.

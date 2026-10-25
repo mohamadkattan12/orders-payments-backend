@@ -46,6 +46,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fakes
       PORT: "8200"
+      STORE_WEBHOOK_BASE: http://api:8100 # webhooks go to the store over the compose network
     ports: ["127.0.0.1:8200:8200"]
     depends_on:
       db: { condition: service_healthy }

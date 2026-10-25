@@ -11,3 +11,102 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+/// Stored responses: a repeated Idempotency-Key replays the first response (Stripe-style).
+model IdempotentRequest {
+  system         String
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([system, key])
+  @@map("idempotent_requests")
+}
+
+/// Current failure mode per system (fakepay | erp | courier | einvoice).
+model SystemMode {
+  system    String   @id
+  mode      String   @default("ok") // ok | down | flaky | slow | response_lost | webhook_lost | duplicate | out_of_order
+  failCount Int      @default(0) // flaky: requests still to fail
+  delayMs   Int      @default(0) // slow: delay before responding
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("system_modes")
+}
+
+model Charge {
+  id                String          @id // pay_…
+  merchantReference String          @unique
+  amountHalalas     Int
+  currency          String
+  token             String
+  status            String // succeeded | failed (decided by the test token)
+  failureReason     String?
+  createdAt         DateTime        @default(now()) @db.Timestamptz(6)
+  refunds           GatewayRefund[]
+
+  @@map("charges")
+}
+
+model GatewayRefund {
+  id                String   @id // ref_…
+  chargeId          String
+  merchantReference String   @unique
+  amountHalalas     Int
+  status            String // succeeded
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  charge            Charge   @relation(fields: [chargeId], references: [id])
+
+  @@map("gateway_refunds")
+}
+
+model ErpRecord {
+  id        String   @id @default(uuid()) @db.Uuid
+  kind      String // sale | refund
+  orderId   String
+  payload   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("erp_records")
+}
+
+model CourierShipment {
+  id        String   @id // shp_…
+  orderId   String
+  status    String // created | picked_up | in_transit | delivered
+  seq       Int
+  payload   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("courier_shipments")
+}
+
+model PortalInvoice {
+  clearanceId String   @id // clr_…
+  invoiceUuid String   @unique
+  kind        String // invoice | credit_note
+  orderId     String
+  payload     Json
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("portal_invoices")
+}
+
+/// Webhooks to the store, sent by a loop until the store answers 2xx (like a real gateway).
+model OutgoingWebhook {
+  id        String    @id @default(uuid()) @db.Uuid
+  system    String
+  eventId   String // the same for a duplicate delivery
+  path      String // /webhooks/fakepay | /webhooks/erp | /webhooks/courier
+  body      Json
+  sendAfter DateTime  @default(now()) @db.Timestamptz(6)
+  attempts  Int       @default(0)
+  sentAt    DateTime? @db.Timestamptz(6)
+  lastError String?
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([sentAt, sendAfter])
+  @@map("outgoing_webhooks")
+}
