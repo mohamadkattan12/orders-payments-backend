@@ -1,6 +1,6 @@
 # Spec: Orders and payments backend for an online store (v1)
 
-From: intent.md (ce05b8f) · Status: flagged concerns 1–8 accepted as proposed by Mohamad Nour on 2026-10-26; spec review pending
+From: intent.md (ce05b8f) · Status: flagged concerns 1–8 accepted as proposed by Mohamad Nour on 2026-10-26; amended after an independent review (see "Review amendments"), pending acceptance
 Skills applied: sdlc, nestjs-patterns, prisma-patterns, database-migrations, redis-patterns,
 security-review @ ~/.claude 2bc6be4
 Produced by: `/sdlc` stage 2 for portfolio project #3, after the intent was accepted
@@ -169,6 +169,70 @@ not to clash with projects #1 and #2).
 - **Rollback:** local only; `docker compose down -v` resets everything.
 - **CI** (GitHub Actions, from step 1): lint, format, typecheck, unit and e2e tests with Postgres
   and Redis services and the fakes app, web build.
+
+## Review amendments (2026-10-26)
+An independent Codex review of intent + spec raised 14 points; all were checked against the spec
+and accepted. Where an amendment and a requirement above disagree, the amendment wins.
+1. **Payment identity first (req 5, 9).** `POST /pay` first commits a `payments` row (`pending`,
+   our UUID), then calls FakePay with `Idempotency-Key = payment id` and `merchant_reference =
+   payment id`. A lost response or crash leaves a pending row that reconciliation resolves by
+   looking up FakePay by our reference. A new attempt is allowed only when every earlier attempt is
+   `failed`.
+2. **Terminal states (req 5–9).** FakePay's contract: `failed` and `succeeded` are final at the
+   provider; a failed charge never later succeeds. Locally, any `succeeded` payment that is not the
+   one that settled the order (a second charge, or a charge for an expired/cancelled order) is
+   refunded automatically.
+3. **One locked transition (req 8, 10, 11).** Settlement, cancellation and expiry each run in one
+   transaction that locks the order row (`SELECT … FOR UPDATE`), checks the current status, and
+   only then changes it, releases stock and writes outbox events. A success settles the order if it
+   is still `pending_payment` when processed, even past `expires_at` (`expires_at` gates new pay
+   attempts and schedules the expiry job; it is not a race with settlement).
+4. **Refund intent first (req 10, 11).** One `requestRefund(payment, reason)` used by automatic
+   and admin refunds: commit a `refunds` row (`pending`, our UUID, unique per payment), call
+   FakePay with that id as the idempotency key, and let a worker retry and reconcile pending
+   refunds until FakePay reports a final state.
+5. **Inbox atomic with effects (req 6, 9, 13).** Storing an inbound webhook's id, applying its state
+   change and writing resulting outbox events happen in one transaction; a crash leaves nothing
+   stored, so the retried webhook is applied. Reconciliation doesn't use event ids: it calls the same
+   idempotent settle/refund transitions.
+6. **Relay order (req 12).** In one transaction the relay claims unpublished rows, inserts their
+   delivery rows and marks them published; it enqueues only after commit. Postgres owns delivery
+   state: a delivery is dispatchable while `pending`, whatever Redis holds; the sweeper enqueues
+   `pending` deliveries whose `next_attempt_at` passed more than a minute ago.
+7. **Attempts live in Postgres (req 14, 15).** `deliveries` gets `attempts`, `next_attempt_at`,
+   `lease_until`. A consumer claims a delivery with a conditional update (`status = pending AND
+   lease expired`), calls the destination, and records the outcome with conditional updates
+   (`delivered` never becomes `dead`). Backoff is a new delayed BullMQ job (`jobId = delivery id:
+   attempt`); after 8 attempts → `dead`. Replay resets `attempts` and enqueues `delivery id:replay-N`.
+8. **Per-order ordering (req 13).** A delivery of `order.refunded` to a destination waits until the
+   same order's `order.paid` delivery to that destination is `delivered` (rescheduled without
+   using an attempt). A dead predecessor leaves its dependents `blocked` (shown on the admin page);
+   replaying the predecessor unblocks them.
+9. **Receivers own exactly-once (concerns 2–3).** Each fake stores its business effect and the
+   idempotency result in one transaction (its own `fakes` database on the same Postgres server, so
+   restarts keep state), including under concurrent identical requests. The README states that
+   end-to-end exactly-once-in-effect depends on the receiver honouring idempotency keys.
+10. **Webhooks validated for business meaning (req 6, 13).** Signature over the raw body; timestamp
+    within ±5 minutes; schema-validated; the referenced payment/refund/shipment must exist and belong
+    to the order, and the amount must equal the stored amount in SAR; otherwise 4xx and recorded as
+    rejected.
+11. **ERP adjustments (req 13).** `stock` is sellable stock. An adjustment that would take it below
+    0 sets it to 0 and records the shortfall on the adjustment row (shown on the admin page);
+    reservations already made are honoured.
+12. **Input bounds (req 2–3).** Quantity integer 1–20, at most 20 lines, a SKU at most once per order
+    (else 400); prices and VAT are snapshotted on `order_items` at checkout and the charge is the
+    stored order total; `subtotal` = VAT-exclusive (total − VAT).
+13. **Capabilities (concern 8, req 11, 16–17).** The order UUID is a bearer capability for reading,
+    paying and cancelling that order (documented). Fake control and ledger endpoints require a
+    separate `FAKES_CONTROL_KEY`. The admin key is typed in the admin page (session storage), never
+    built into the bundle.
+14. **Testable proof (req 16, 18, 19).** Failure modes are deterministic (`flaky` fails exactly N
+    times; `out_of_order` takes an explicit order) and limited to what each system can do: FakePay
+    (down, response lost, webhook lost, duplicate, out-of-order), ERP (down, flaky, duplicate stock
+    webhooks), Courier (flaky, duplicate and out-of-order tracking), Invoicing (down, flaky). Tests
+    wait for settlement with a deadline (10 s) and assert durable state as well as ledgers;
+    "stock never below 0" is enforced by the CHECK constraint and asserted after each run. Added
+    races: settle vs expiry, cancel vs settle, refund vs paid delivery ordering.
 
 ## Carried-forward open questions
 - None beyond the flagged concerns above.
