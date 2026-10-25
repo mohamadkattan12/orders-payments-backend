@@ -1,7 +1,7 @@
 # Intent: Orders and payments backend for an online store (portfolio project #3)
 
 Author: Mohamad Nour · Source: conversation (portfolio plan after LinkedIn KSA research) · Date: 2026-10-26
-Status: draft
+Status: accepted by Mohamad Nour on 2026-10-26 (open questions as proposed: repo `orders-payments-backend`, load test 200 concurrent checkouts on 50 units)
 
 ## Problem
 Projects #1 (arabic-docs-qa) and #2 (clinic-booking-agent) show AI work: retrieval, agents and
