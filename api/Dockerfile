@@ -15,5 +15,5 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json /app/prisma7.config.ts ./
 USER node
-# Apply migrations, then start.
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/main.js"]
+# Apply migrations and the idempotent seed, then start.
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/seed/run.js && node dist/main.js"]

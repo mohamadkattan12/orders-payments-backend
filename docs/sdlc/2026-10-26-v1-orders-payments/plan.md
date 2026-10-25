@@ -134,3 +134,9 @@ amendments").
   Alpine while the API listens on IPv4). `/health/ready` checks Postgres and Redis now;
   migrations and seed join it in step 2. Redis runs with AOF and `noeviction`; a `fakes`
   database is created by an init script. e2e tests use `shop_test` / `fakes_test` and Redis db 1.
+- Step 2: the init migration was generated with `--create-only`, then hand-edited (stock CHECK,
+  positive qty/amount CHECKs, partial unique "one non-failed payment per order", unpublished-outbox
+  partial index, invoice number sequence created before `invoices`). `prisma migrate dev` hung
+  after applying it (interactive step); `migrate status` confirmed it applied. Use `migrate
+  deploy` after hand edits. The seed upserts names/prices but never resets stock; the image runs
+  migrate → seed → start. Deliveries carry `orderId` and `eventType` for per-order ordering.

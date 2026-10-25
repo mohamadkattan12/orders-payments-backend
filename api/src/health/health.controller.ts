@@ -14,15 +14,31 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  /** Ready = Postgres and Redis reachable. */
+  /** Ready = Postgres and Redis reachable, migrations applied, products seeded. */
   @Get('ready')
-  async ready(): Promise<{ status: 'ready'; db: 'ok'; redis: 'ok' }> {
+  async ready(): Promise<{
+    status: 'ready';
+    db: 'ok';
+    redis: 'ok';
+    migrations: number;
+    products: number;
+  }> {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
+      const [{ count }] = await this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL`;
+      const products = await this.prisma.product.count();
       if ((await this.redis.ping()) !== 'PONG') throw new Error('redis');
-      return { status: 'ready', db: 'ok', redis: 'ok' };
+      if (Number(count) === 0 || products === 0)
+        throw new Error('not migrated or not seeded');
+      return {
+        status: 'ready',
+        db: 'ok',
+        redis: 'ok',
+        migrations: Number(count),
+        products,
+      };
     } catch {
-      throw new ServiceUnavailableException('dependencies not ready');
+      throw new ServiceUnavailableException('not ready');
     }
   }
 }
