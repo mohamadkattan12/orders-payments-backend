@@ -370,4 +370,12 @@ describe('fake external systems (e2e)', () => {
       ).toEqual([3, 2, 1]);
     }
   });
+  it("answers 30 concurrent charges within the store's 5 s timeout", async () => {
+    const started = Date.now();
+    const results = await Promise.all(
+      Array.from({ length: 30 }, () => charge()),
+    );
+    expect(results.map((r) => r.status)).toEqual(Array(30).fill(201));
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
 });
