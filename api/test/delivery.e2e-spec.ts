@@ -249,4 +249,52 @@ describe('delivery engine (e2e)', () => {
       'order.refunded',
     ]);
   });
+  it('after a replay, a system that is still down is retried on the backoff, not left for the sweeper', async () => {
+    dest.erp.failAlways = true;
+    await emit('order.paid');
+    worker.start();
+    await relay.relayOnce();
+    await eventually(
+      async () =>
+        expect((await rows({ destination: 'erp' }))[0].status).toBe('dead'),
+      20_000,
+    );
+    const [dead] = await rows({ destination: 'erp' });
+    await deliveries.replay(dead.id);
+    // replay, then retries a1, a2 … on a 20 ms base: well within 5 s, far below the sweeper's minute
+    await eventually(
+      () =>
+        expect(dest.erp.calls.length).toBeGreaterThanOrEqual(MAX_ATTEMPTS + 3),
+      5000,
+    );
+  });
+
+  it('a blocked delivery whose predecessor is already delivered is freed by the sweeper', async () => {
+    const orderId = randomUUID();
+    await emit('order.paid', orderId);
+    await emit('order.refunded', orderId);
+    await relay.relayOnce({ enqueue: false });
+    // The race: the sale was replayed and delivered between the refund's check and its "blocked" write.
+    await prisma.delivery.updateMany({
+      where: { orderId, destination: 'erp', eventType: 'order.paid' },
+      data: { status: 'delivered', attempts: 1 },
+    });
+    await prisma.delivery.updateMany({
+      where: { orderId, destination: 'erp', eventType: 'order.refunded' },
+      data: { status: 'blocked' },
+    });
+    worker.start();
+    await deliveries.sweep();
+    await eventually(async () =>
+      expect(
+        (
+          await rows({
+            orderId,
+            destination: 'erp',
+            eventType: 'order.refunded',
+          })
+        )[0].status,
+      ).toBe('delivered'),
+    );
+  });
 });

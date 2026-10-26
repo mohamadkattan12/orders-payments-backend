@@ -216,6 +216,24 @@ describe('ERP destination (e2e, real fakes)', () => {
     ).toMatchObject([{ sku: 'HONEY-SIDR-500G', qty: 1 }]);
   });
 
+  it('units the ERP removed stay removed: a cancelled reservation repays the shortfall first, then a restock does', async () => {
+    const order = await checkout('HONEY-SIDR-500G', 1); // seeded with 2, one now reserved
+    await adjust('HONEY-SIDR-500G', -4); // clamps at 0, 3 units owed
+    await eventually(async () =>
+      expect(await prisma.stockAdjustment.count()).toBe(1),
+    );
+    await http()
+      .post(`/orders/${order.id}/cancel`)
+      .set('Idempotency-Key', randomUUID())
+      .expect(200);
+    expect(await stock('HONEY-SIDR-500G')).toBe(0); // the released unit pays 1 of the 3 owed
+    await adjust('HONEY-SIDR-500G', 5);
+    await eventually(async () =>
+      expect(await prisma.stockAdjustment.count()).toBe(2),
+    );
+    expect(await stock('HONEY-SIDR-500G')).toBe(3); // 5 received, 2 still owed
+  });
+
   it('rejects bad signatures (401) and malformed events (400) without storing; an unknown SKU is 422 and recorded', async () => {
     const data = { adjustmentId: 'adj_x', sku: 'PRAYER-MAT', delta: 1 };
     const before = await stock('PRAYER-MAT');
