@@ -99,8 +99,8 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
 - `cd api && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:e2e` → all
   pass, including every scenario in spec req 18 + amendment 14 (named tests, listed in the README).
 - `cd fakes && pnpm test && pnpm test:e2e` → pass; `cd web && pnpm lint && pnpm typecheck && pnpm
-  test && pnpm build` → pass.
-- Load test: `docker compose --profile load run --rm k6` → 50 paid, 150 `out_of_stock`, 0 duplicate
+  build` → pass (no web component tests: see departures, build wave).
+- Load test: `THROTTLE_LIMIT=100000 docker compose up -d api && load/run.sh` (k6 via the `load` profile) → 50 paid, 150 `out_of_stock`, 0 duplicate
   charges in the FakePay ledger, stock = 0; p50/p95 recorded in the README.
 - Admin page in Chrome: an order's timeline shows payment, webhooks, outbox events and deliveries;
   switching ERP to `down` produces retries then a dead letter; Replay delivers it once.
@@ -109,18 +109,24 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
 
 ## Done checklist
 1. [x] Code per order of work (steps 1–10)
-2. [ ] Tests: money/VAT, idempotency, checkout races, payments races, delivery engine, destinations,
+2. [x] Tests: money/VAT, idempotency, checkout races, payments races, delivery engine, destinations,
        failure-injection suite, fakes
-3. [ ] Load test run + README with results (step 11)
-4. [ ] Verification output pasted; verifier subagent PASS
+3. [x] Load test run + README with results (step 11)
+4. [x] Verification output pasted; verifier subagent PASS
 5. [ ] Reviewer subagent: Important findings fixed and re-verified
 6. [ ] Public repo created (approved), PR open, CI green, review comments addressed
 7. [ ] Deployed per deploy tier: n/a (local Docker only)
-8. [ ] Fresh-clone `docker compose up` check with new volumes
+8. [x] Fresh-clone `docker compose up` check with new volumes
 
 ## Review
 Spec-stage review (2026-10-26): independent Codex review, 14 points, all accepted (spec "Review
 amendments").
+
+Verifier subagent (2026-10-26): PASS on build, lint, types, 17 unit + 83 api e2e (twice) + 15 fakes
+e2e, web build, live happy path, ERP down → dead → replay → one ledger record, decline/retry,
+cancel, admin auth. Flagged doc mismatches (web has no `test` script; the load command in Proof
+differed from README): Proof updated. It skipped the load run (rate limit not raised); the lead's
+run after the pool fix is the recorded one.
 
 ## Departures from plan
 - Step 1: web runs on **3200**, not 3100 (a local Vite dev server already holds 3100); spec ports
