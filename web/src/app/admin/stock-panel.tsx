@@ -67,7 +67,11 @@ export function StockPanel() {
                         : "text-end tabular-nums"
                     }
                   >
-                    {a.shortfall > 0 ? `${a.shortfall} short` : "0"}
+                    {a.shortfall > 0
+                      ? `${a.shortfall} short`
+                      : a.shortfall < 0
+                        ? `${-a.shortfall} repaid`
+                        : "0"}
                   </TableCell>
                   <TableCell>
                     <code className="font-mono text-xs">{a.adjustmentId}</code>

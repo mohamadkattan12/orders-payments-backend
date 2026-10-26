@@ -19,7 +19,7 @@ deterministic failure modes. Nothing here talks to a real provider.
 
 ```sh
 docker compose up -d --build
-curl -s localhost:8100/health/ready   # {"status":"ready","db":"ok","redis":"ok","migrations":2,"products":12}
+curl -s localhost:8100/health/ready   # {"status":"ready","db":"ok","redis":"ok","migrations":3,"products":12}
 ```
 
 | Service | URL (127.0.0.1 only) |
@@ -39,7 +39,7 @@ may arrive more than once, and every receiver turns repeats into no-ops.
 
 | Guarantee | How |
 |---|---|
-| Stock never oversold, never negative | One conditional `UPDATE … WHERE stock >= qty` per line, rows locked in SKU order (no deadlocks), plus `CHECK (stock >= 0)` |
+| Stock never oversold, never negative | One conditional `UPDATE … WHERE stock >= qty` per line, rows locked in SKU order (no deadlocks), plus `CHECK (stock >= 0)`. Units the ERP removes while orders hold them are owed (`shortfall`) and repaid by a cancel, expiry or restock before they become sellable again |
 | A retried request has one effect | `Idempotency-Key` on every money- or stock-changing call; the key, the effect and the stored response commit in **one transaction**, so a crash leaves no half-done key |
 | A payment is charged once | The payment row is committed *before* the gateway call and sent as the merchant reference with the same idempotency key, so a lost response is found by lookup instead of charged again |
 | Webhooks applied once, in any order | HMAC over the raw body with a ±5 min window; inbox row, state change and outbox event in one transaction; order transitions under a row lock; a success arriving for an expired order is refunded automatically |
@@ -161,7 +161,7 @@ cd fakes && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:e2e
 cd web   && pnpm lint && pnpm typecheck && pnpm build
 ```
 
-17 unit tests (money and VAT, webhook signatures, backoff), 83 api e2e tests and 15 fakes e2e tests. The e2e tests run
+18 unit tests (money and VAT, webhook signatures, backoff, config), 86 api e2e tests and 15 fakes e2e tests. The e2e tests run
 against real Postgres, Redis and the fakes on throwaway databases; `E2E_SLOT=n` gives a run its own
 databases, ports and Redis db so several checkouts can test at once. CI runs all of it on every push.
 

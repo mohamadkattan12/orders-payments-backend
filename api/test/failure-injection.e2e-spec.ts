@@ -285,6 +285,13 @@ describe('failure injection (e2e, real fakes and worker)', () => {
     stopRelay();
     const id = await paidOrder();
     await Promise.all([relay.relayOnce(), relay.relayOnce()]);
+    // As if the publish mark were lost: the same events are relayed again.
+    await prisma.outboxEvent.updateMany({
+      where: { orderId: id },
+      data: { publishedAt: null },
+    });
+    await relay.relayOnce();
+    expect(await deliveries(id)).toHaveLength(3);
     const dispatcher = worker.get(Dispatcher);
     for (const d of await deliveries(id))
       await Promise.all(

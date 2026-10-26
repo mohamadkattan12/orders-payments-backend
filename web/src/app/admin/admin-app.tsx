@@ -102,7 +102,7 @@ export function AdminApp() {
         </Panel>
         <Panel
           title="Stock adjustments"
-          description="Corrections from the ERP. A shortfall is stock the ERP removed that was already sold or reserved."
+          description="Corrections from the ERP. A shortfall is stock the ERP removed that orders already held; a cancelled order or a restock repays it before stock becomes sellable again."
         >
           <StockPanel />
         </Panel>

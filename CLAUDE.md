@@ -6,8 +6,8 @@ transactional outbox delivering to a fake ERP, courier and e-invoicing portal. L
 admin routes need `X-Admin-Key`. Owner: mohamadkattan12.
 
 ## Commands
-- Run: `docker compose up -d --build` → `curl -s localhost:8100/health/ready` → `{"status":"ready",…,"migrations":2,"products":12}`; admin http://localhost:3200/admin (`dev-admin-key`)
-- API (in `api/`): `pnpm lint && pnpm format:check && pnpm typecheck` → exit 0; `pnpm test` → `17 passed`; `pnpm test:e2e` → `83 passed` (needs the compose `db` and `redis`; builds and starts `../fakes` on :8299)
+- Run: `docker compose up -d --build` → `curl -s localhost:8100/health/ready` → `{"status":"ready",…,"migrations":3,"products":12}`; admin http://localhost:3200/admin (`dev-admin-key`)
+- API (in `api/`): `pnpm lint && pnpm format:check && pnpm typecheck` → exit 0; `pnpm test` → `18 passed`; `pnpm test:e2e` → `86 passed` (needs the compose `db` and `redis`; builds and starts `../fakes` on :8299)
 - Fakes (in `fakes/`): same lint/format/typecheck; `pnpm test:e2e` → `15 passed`
 - Web (in `web/`): `pnpm lint && pnpm typecheck && pnpm build` → exit 0, routes `/`, `/admin`
 - Parallel e2e runs (worktrees, agents): prefix `E2E_SLOT=n` (own databases, ports +n×1000, Redis db 1+n). Never run two unslotted e2e suites at once.
@@ -22,7 +22,7 @@ code, not the test. Admin page changes: check them in Chrome (orders, timeline, 
 ## Conventions
 - Scaffold and add dependencies with commands (`nest g`, `pnpm add`, `pnpm dlx shadcn add`, `prisma migrate dev`), not hand-written boilerplate.
 - Commits are authored by the owner only: no `Claude-Session` or `Co-Authored-By` trailers.
-- Money is integer halalas, VAT-inclusive; VAT per line = round(line × 15/115) (`common/money.ts`); totals are sums of snapshotted lines. Code reads time only through `Clock`.
+- Money is integer halalas, VAT-inclusive; VAT per line = round(line × 15/115) (`common/money.ts`); totals are sums of snapshotted lines. Business time (holds, expiry, reconciliation, refunds) is read through `Clock`; the delivery engine and idempotency-key TTL use the wall clock and Postgres `now()`.
 - Every money- or stock-changing endpoint takes `Idempotency-Key`; key, effect and stored response commit in one transaction (`IdempotencyService.runInTransaction`).
 - State changes others must hear about write an outbox row in the same transaction. Order transitions go through `lockOrder`; payments settle only via `settlePayment` (webhook, reconciliation and expiry share it).
 - Delivery state lives in Postgres (`deliveries`); BullMQ jobs are wake-ups (job ids `<delivery id>_<tag>`, no `:`). A destination handler throws to mean "retry" and sends `Idempotency-Key: <event id>:<destination>`.

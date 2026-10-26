@@ -113,7 +113,7 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
        failure-injection suite, fakes
 3. [x] Load test run + README with results (step 11)
 4. [x] Verification output pasted; verifier subagent PASS
-5. [ ] Reviewer subagent: Important findings fixed and re-verified
+5. [x] Reviewer subagent: Important findings fixed and re-verified
 6. [ ] Public repo created (approved), PR open, CI green, review comments addressed
 7. [ ] Deployed per deploy tier: n/a (local Docker only)
 8. [x] Fresh-clone `docker compose up` check with new volumes
@@ -127,6 +127,31 @@ e2e, web build, live happy path, ERP down → dead → replay → one ledger rec
 cancel, admin auth. Flagged doc mismatches (web has no `test` script; the load command in Proof
 differed from README): Proof updated. It skipped the load run (rate limit not raised); the lead's
 run after the pool fix is the recorded one.
+
+Review wave (2026-10-26): the reviewer subagent plus 3 focused reviewers (money/stock/state,
+delivery/failures, security), and an independent skeptic re-checked every finding: 14 findings,
+11 confirmed, 3 refuted (delivery tests ordering by `createdAt`, settleRefund not checking the
+charge id, and one duplicate of the Clock nit). Confirmed and fixed, each bug with a failing test
+committed first (`021df41`):
+- Important: an empty `ADMIN_KEY`, control key or webhook secret disabled the check (`??` keeps `""`)
+  → `||` in both configs.
+- Important: compose did not pass keys or secrets to api/fakes, so `.env` overrides had no effect
+  → passed through (empty = dev default).
+- Important: an ERP removal clamped at 0 was never netted, so a cancel or expiry made the removed
+  units sellable again (oversell) → `products.shortfall` (migration `product_shortfall`, CHECK ≥ 0);
+  releases and restocks repay it first; the adjustment row's `shortfall` is the change in units owed.
+- Important: after a replay, retry job ids `a1…a7` collided with completed jobs kept by BullMQ, so
+  every retry waited 60–90 s for the sweeper → tags unique per round.
+- Important: a refund delivery could stay `blocked` forever if its sale was replayed and delivered
+  between the check and the write → the sweeper frees blocked deliveries whose predecessor is
+  delivered.
+- Important: spec observability asked for JSON logs with order/event/delivery ids → `ConsoleLogger`
+  json mode in both entry points; delivery and payment warnings carry the ids.
+- Nit: the "relay publishes twice" scenario never re-relayed an event → it now clears the publish
+  mark and relays again (still 3 deliveries, one effect each).
+- Nit: CLAUDE.md said all code reads time through `Clock` → narrowed to business time (holds,
+  expiry, reconciliation, refunds), which is what the tests control.
+After the fixes: 18 unit, 86 api e2e (twice), 15 fakes e2e, web build; all pass.
 
 ## Departures from plan
 - Step 1: web runs on **3200**, not 3100 (a local Vite dev server already holds 3100); spec ports
