@@ -5,6 +5,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
+import { SenderService } from '../src/webhooks/sender.service.js';
 
 type Received = {
   path: string;
@@ -341,5 +343,31 @@ describe('fake external systems (e2e)', () => {
       .set(KEY)
       .send({ mode: 'ok' })
       .expect(400);
+  });
+  it('flush releases webhooks queued in one transaction newest first, every time', async () => {
+    await control('courier', { mode: 'out_of_order' });
+    const prisma = app.get(PrismaService);
+    const sender = app.get(SenderService);
+    for (let round = 0; round < 50; round++) {
+      await prisma.$transaction(async (tx) => {
+        for (const n of [1, 2, 3])
+          await sender.emit(tx, 'courier', '/webhooks/courier', 'test.order', {
+            round,
+            n,
+          });
+      });
+      await sender.flush('courier');
+      const rows = await prisma.outgoingWebhook.findMany({
+        where: {
+          system: 'courier',
+          body: { path: ['data', 'round'], equals: round },
+        },
+        orderBy: { sendAfter: 'asc' },
+      });
+      expect(
+        rows.map((r) => (r.body as { data: { n: number } }).data.n),
+        `round ${round}`,
+      ).toEqual([3, 2, 1]);
+    }
   });
 });
