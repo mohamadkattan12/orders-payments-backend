@@ -48,7 +48,7 @@ export class SenderService implements OnModuleInit, OnModuleDestroy {
     data: Record<string, unknown>,
     delayMs = 0,
   ): Promise<string | null> {
-    const { mode } = await this.modes.get(system);
+    const { mode } = await this.modes.get(system, db);
     const eventId = newId('evt');
     if (mode === 'webhook_lost') {
       this.log.warn(`${system} ${type} ${eventId} dropped (webhook_lost)`);

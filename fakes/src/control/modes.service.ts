@@ -1,6 +1,7 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import type { Response } from 'express';
 import type { System } from '../common/config.js';
+import type { Tx } from '../common/idempotent.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type Mode =
@@ -17,9 +18,10 @@ export type Mode =
 export class ModesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async get(system: System) {
+  /** Inside a transaction pass its client: a second pooled query there can exhaust the pool. */
+  async get(system: System, db: Tx = this.prisma) {
     return (
-      (await this.prisma.systemMode.findUnique({ where: { system } })) ?? {
+      (await db.systemMode.findUnique({ where: { system } })) ?? {
         system,
         mode: 'ok' as Mode,
         failCount: 0,
