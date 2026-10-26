@@ -42,6 +42,17 @@ services:
       interval: 3s
       retries: 40
 
+  worker:
+    build: ./api
+    # Relay, delivery consumer, sweeper, reconciliation, refunds and expiry (no HTTP).
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/shop
+      REDIS_URL: redis://redis:6379
+      FAKES_URL: http://fakes:8200
+    depends_on:
+      api: { condition: service_healthy } # the api container applies migrations first
+
   fakes:
     build: ./fakes
     environment:

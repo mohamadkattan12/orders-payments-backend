@@ -176,3 +176,14 @@ amendments").
   rounds; it now races the two transactions with jitter and asserts both outcomes occur. The
   api e2e suite starts the real fakes app (built from `../fakes`) on port 8299; CI installs it.
   Jobs (reconcile, refunds, expiry) are service methods here; the worker schedules them in step 6.
+- Step 6 (delivery engine): BullMQ `Queue`/`Worker` used directly (`@nestjs/bullmq` removed:
+  unused); BullMQ job ids can't contain `:`, so they are `<delivery id>_<tag>` with a tag per
+  attempt/replay/sweep. The claim accepts deliveries due within 2 s (a delayed job can fire
+  slightly early; without the tolerance it would wait for the sweeper). A refund delivery waiting
+  for its sale is rescheduled every 2 s without using an attempt; behind a dead or blocked sale it
+  becomes `blocked`, and the sale's delivery unblocks it. The worker (`dist/worker.js`, compose
+  service `worker`) runs the consumer plus timers: relay 200 ms; sweep, reconcile, refunds and
+  expiry every 30 s; idempotency-key cleanup hourly. Destinations each have a folder and module
+  (`src/destinations/{erp,courier,invoicing}`) with a stub handler, so the parallel step-7 agents
+  edit only their own folder. Live check in Docker: checkout → pay → webhook → paid → three
+  deliveries delivered on attempt 1.

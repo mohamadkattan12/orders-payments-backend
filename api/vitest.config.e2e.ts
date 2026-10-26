@@ -14,6 +14,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: admin.replace(/\/[^/]+$/, '/shop_test'),
       THROTTLE_LIMIT: '100000',
+      DELIVERY_BASE_MS: '20', // retries in milliseconds instead of seconds
       FAKES_URL: 'http://127.0.0.1:8299',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://localhost:6380/1', // db 1: never the dev queues
     },
