@@ -81,7 +81,7 @@ export class SenderService implements OnModuleInit, OnModuleDestroy {
   async flush(system: WebhookSystem): Promise<number> {
     const held = await this.prisma.outgoingWebhook.findMany({
       where: { system, sendAfter: HELD, sentAt: null },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { seq: 'desc' },
     });
     const now = Date.now();
     for (const [i, w] of held.entries())

@@ -106,6 +106,7 @@ model OutgoingWebhook {
   sentAt    DateTime? @db.Timestamptz(6)
   lastError String?
   createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  seq       Int       @default(autoincrement()) // emission order; createdAt ties within a millisecond
 
   @@index([sentAt, sendAfter])
   @@map("outgoing_webhooks")
