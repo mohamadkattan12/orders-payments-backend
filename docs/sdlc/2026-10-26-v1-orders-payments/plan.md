@@ -1,7 +1,7 @@
 # Plan: Orders and payments backend for an online store (v1)
 
 From: spec.md (accepted 2026-10-26, with review amendments) · Status: draft
-Worktree: main checkout · Branch: v1-orders-payments · PR: (none yet)
+Worktree: main checkout · Branch: v1-orders-payments · PR: https://github.com/mohamadkattan12/orders-payments-backend/pull/1
 
 ## Files that change
 All new (empty repo):
@@ -114,7 +114,7 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
 3. [x] Load test run + README with results (step 11)
 4. [x] Verification output pasted; verifier subagent PASS
 5. [x] Reviewer subagent: Important findings fixed and re-verified
-6. [ ] Public repo created (approved), PR open, CI green, review comments addressed
+6. [x] Public repo created (approved), PR open, CI green, review comments addressed (CodeRabbit skipped: 192 files)
 7. [ ] Deployed per deploy tier: n/a (local Docker only)
 8. [x] Fresh-clone `docker compose up` check with new volumes
 
