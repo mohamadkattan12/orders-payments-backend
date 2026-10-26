@@ -12,6 +12,7 @@ import { PaymentsModule } from './payments/payments.module.js';
 import { WebhooksModule } from './webhooks/webhooks.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { ErpWebhooksModule } from './destinations/erp/erp-webhooks.module.js';
+import { CourierWebhookModule } from './destinations/courier/courier-webhook.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ErpWebhooksModule } from './destinations/erp/erp-webhooks.module.js';
     WebhooksModule,
     AdminModule,
     ErpWebhooksModule,
+    CourierWebhookModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
