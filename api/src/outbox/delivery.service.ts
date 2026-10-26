@@ -119,9 +119,12 @@ export class DeliveryService {
               nextAttemptAt: new Date(Date.now() + delay),
             },
       });
-      this.log.warn(
-        `${delivery.destination} ${delivery.eventType} attempt ${attempts}: ${lastError}`,
-      );
+      this.log.warn({
+        message: `${delivery.destination} ${delivery.eventType} attempt ${attempts}: ${lastError}`,
+        deliveryId: id,
+        eventId: delivery.eventId,
+        orderId: delivery.orderId,
+      });
       if (dead) return 'dead';
       // Unique per round: after a replay, attempt numbers repeat and BullMQ keeps completed job ids.
       await this.dispatcher.enqueue(id, `a${attempts}_${Date.now()}`, delay);

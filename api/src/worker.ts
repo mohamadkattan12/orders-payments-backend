@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { ConsoleLogger, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { KEY_TTL_MS } from './idempotency/idempotency.service.js';
 import { DeliveryService } from './outbox/delivery.service.js';
@@ -27,7 +27,9 @@ function every(
 }
 
 async function bootstrap() {
-  const app = await NestFactory.createApplicationContext(WorkerModule);
+  const app = await NestFactory.createApplicationContext(WorkerModule, {
+    logger: new ConsoleLogger({ json: true }),
+  });
   app.enableShutdownHooks();
   const relay = app.get(RelayService);
   const deliveries = app.get(DeliveryService);

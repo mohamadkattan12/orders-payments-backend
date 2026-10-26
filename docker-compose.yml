@@ -35,6 +35,12 @@ services:
       FAKES_URL: http://fakes:8200
       PORT: "8100"
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-200} # per IP per 10 s; load/run.sh needs it raised
+      ADMIN_KEY: ${ADMIN_KEY:-}
+      # Unset means the dev default in the code (see .env.example); compose reads them from .env.
+      FAKES_CONTROL_KEY: ${FAKES_CONTROL_KEY:-}
+      FAKEPAY_WEBHOOK_SECRET: ${FAKEPAY_WEBHOOK_SECRET:-}
+      ERP_WEBHOOK_SECRET: ${ERP_WEBHOOK_SECRET:-}
+      COURIER_WEBHOOK_SECRET: ${COURIER_WEBHOOK_SECRET:-}
     ports: ["127.0.0.1:8100:8100"]
     depends_on:
       db: { condition: service_healthy }
@@ -61,6 +67,11 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/fakes
       PORT: "8200"
       STORE_WEBHOOK_BASE: http://api:8100 # webhooks go to the store over the compose network
+      # Unset means the dev default in the code (see .env.example); compose reads them from .env.
+      FAKES_CONTROL_KEY: ${FAKES_CONTROL_KEY:-}
+      FAKEPAY_WEBHOOK_SECRET: ${FAKEPAY_WEBHOOK_SECRET:-}
+      ERP_WEBHOOK_SECRET: ${ERP_WEBHOOK_SECRET:-}
+      COURIER_WEBHOOK_SECRET: ${COURIER_WEBHOOK_SECRET:-}
     ports: ["127.0.0.1:8200:8200"]
     depends_on:
       db: { condition: service_healthy }

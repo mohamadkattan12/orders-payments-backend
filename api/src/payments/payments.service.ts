@@ -141,9 +141,11 @@ export class PaymentsService {
         });
       }, TX);
     else
-      this.log.warn(
-        `payment ${payment.id}: outcome unknown (${result.error}); reconciliation will settle it`,
-      );
+      this.log.warn({
+        message: `payment outcome unknown (${result.error}); reconciliation will settle it`,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+      });
   }
 
   /**
@@ -314,9 +316,11 @@ export class PaymentsService {
         data: { providerRefundId: result.value.id },
       });
     else
-      this.log.warn(
-        `refund ${refund.id}: ${result.kind} (${result.error}); will retry`,
-      );
+      this.log.warn({
+        message: `refund ${result.kind} (${result.error}); will retry`,
+        refundId: refund.id,
+        orderId: refund.payment.orderId,
+      });
   }
 
   /** Apply a provider's refund success (webhook or reconciliation). Safe to call twice. */
