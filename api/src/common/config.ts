@@ -1,10 +1,11 @@
 // Dev-only defaults so `docker compose up` works without setup; override them anywhere real.
+// `||`, not `??`: an empty variable must never mean "no key".
 export const config = {
-  fakesUrl: () => process.env.FAKES_URL ?? 'http://localhost:8200',
-  adminKey: () => process.env.ADMIN_KEY ?? 'dev-admin-key',
-  fakesControlKey: () => process.env.FAKES_CONTROL_KEY ?? 'dev-control-key',
+  fakesUrl: () => process.env.FAKES_URL || 'http://localhost:8200',
+  adminKey: () => process.env.ADMIN_KEY || 'dev-admin-key',
+  fakesControlKey: () => process.env.FAKES_CONTROL_KEY || 'dev-control-key',
   webhookSecret: (source: 'fakepay' | 'erp' | 'courier') =>
-    process.env[`${source.toUpperCase()}_WEBHOOK_SECRET`] ??
+    process.env[`${source.toUpperCase()}_WEBHOOK_SECRET`] ||
     `dev-${source}-secret`,
 };
 

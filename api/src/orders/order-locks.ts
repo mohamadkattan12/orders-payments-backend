@@ -9,15 +9,19 @@ export async function lockOrder(tx: Tx, id: string) {
   return order;
 }
 
-/** Return an order's reserved units to sellable stock (call only after winning the transition). */
+/**
+ * Return an order's reserved units to sellable stock (call only after winning the transition). Units
+ * the ERP has removed meanwhile (`shortfall`) are repaid first instead of becoming sellable again.
+ */
 export async function releaseStock(tx: Tx, orderId: string): Promise<void> {
   const items = await tx.orderItem.findMany({
     where: { orderId },
     orderBy: { sku: 'asc' },
   });
   for (const item of items)
-    await tx.product.update({
-      where: { id: item.productId },
-      data: { stock: { increment: item.qty } },
-    });
+    await tx.$executeRaw`
+      UPDATE products
+      SET stock = stock + ${item.qty} - LEAST(shortfall, ${item.qty}),
+          shortfall = shortfall - LEAST(shortfall, ${item.qty})
+      WHERE id = ${item.productId}::uuid`;
 }

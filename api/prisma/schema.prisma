@@ -63,6 +63,7 @@ model Product {
   nameEn       String
   priceHalalas Int // VAT included
   stock        Int // sellable units; CHECK (stock >= 0) in the migration
+  shortfall    Int               @default(0) // units the ERP removed that orders still hold; repaid by releases and restocks first
   createdAt    DateTime          @default(now()) @db.Timestamptz(6)
   orderItems   OrderItem[]
   adjustments  StockAdjustment[]

@@ -123,7 +123,8 @@ export class DeliveryService {
         `${delivery.destination} ${delivery.eventType} attempt ${attempts}: ${lastError}`,
       );
       if (dead) return 'dead';
-      await this.dispatcher.enqueue(id, `a${attempts}`, delay);
+      // Unique per round: after a replay, attempt numbers repeat and BullMQ keeps completed job ids.
+      await this.dispatcher.enqueue(id, `a${attempts}_${Date.now()}`, delay);
       return 'retry';
     }
   }
@@ -166,7 +167,10 @@ export class DeliveryService {
     return count > 0;
   }
 
-  /** Re-enqueue pending deliveries overdue by a minute: covers a crash after commit or a wiped Redis. */
+  /**
+   * Re-enqueue pending deliveries overdue by a minute (a crash after commit, a wiped Redis) and free
+   * blocked ones whose predecessor has been delivered.
+   */
   async sweep(): Promise<number> {
     const overdue = await this.prisma.delivery.findMany({
       where: {
@@ -179,6 +183,22 @@ export class DeliveryService {
     });
     for (const { id } of overdue)
       await this.dispatcher.enqueue(id, `sweep${Date.now()}`);
+    // A predecessor delivered just after its dependent checked it leaves the dependent blocked.
+    const blocked = await this.prisma.delivery.findMany({
+      where: { status: 'blocked' },
+      take: 500,
+    });
+    for (const d of blocked) {
+      const predecessor = await this.prisma.delivery.findFirst({
+        where: {
+          orderId: d.orderId,
+          destination: d.destination,
+          eventType: PREDECESSOR[d.eventType],
+          status: 'delivered',
+        },
+      });
+      if (predecessor) await this.unblockDependents(predecessor);
+    }
     return overdue.length;
   }
 }

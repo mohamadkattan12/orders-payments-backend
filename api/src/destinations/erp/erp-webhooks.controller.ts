@@ -29,27 +29,35 @@ interface Adjustment {
 
 /**
  * Applies one ERP stock correction. `stock` is sellable stock, so a removal larger than it clamps
- * at 0 and the rest is recorded as shortfall; orders already holding units keep them (amendment 11).
+ * at 0 and the rest becomes the product's shortfall; orders already holding units keep them
+ * (amendment 11). A restock repays an outstanding shortfall before adding sellable units. The row's
+ * `shortfall` is the change in units owed: positive when added, negative when repaid.
  */
 async function applyAdjustment(tx: Tx, a: Adjustment): Promise<void> {
   // Locked first, so two events carrying the same adjustment id serialize here.
-  const [product] = await tx.$queryRaw<{ id: string; stock: number }[]>`
-    SELECT id, stock FROM products WHERE sku = ${a.sku} FOR UPDATE`;
+  const [product] = await tx.$queryRaw<
+    { id: string; stock: number; shortfall: number }[]
+  >`SELECT id, stock, shortfall FROM products WHERE sku = ${a.sku} FOR UPDATE`;
   if (!product) throw new Rejection('unknown_sku');
-  const stock = Math.max(product.stock + a.delta, 0);
+  const repaid = a.delta > 0 ? Math.min(product.shortfall, a.delta) : 0;
+  const stock = Math.max(product.stock + a.delta - repaid, 0);
   const applied = stock - product.stock;
+  const owed = a.delta > 0 ? -repaid : applied - a.delta;
   const created = await tx.stockAdjustment.createMany({
     data: {
       adjustmentId: a.adjustmentId,
       productId: product.id,
       delta: a.delta,
       applied,
-      shortfall: applied - a.delta,
+      shortfall: owed,
     },
     skipDuplicates: true,
   });
   if (created.count === 0) return; // already applied under another event id
-  await tx.product.update({ where: { id: product.id }, data: { stock } });
+  await tx.product.update({
+    where: { id: product.id },
+    data: { stock, shortfall: product.shortfall + owed },
+  });
 }
 
 @SkipThrottle()
