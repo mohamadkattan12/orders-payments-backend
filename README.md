@@ -134,8 +134,8 @@ docker compose up -d api                         # back to the default limit
 | Checkouts | 50 × 201, 150 × 409 `out_of_stock`, 0 unexpected |
 | Paid orders / FakePay charges | 50 / 50, all distinct merchant references, 0 refunds |
 | Stock after the run | 0 (never negative) |
-| Checkout latency | p50 416 ms, p95 465 ms |
-| Pay latency (202, outcome by webhook) | p50 322 ms, p95 418 ms |
+| Checkout latency | p50 359 ms, p95 394 ms |
+| Pay latency (202, outcome by webhook) | p50 294 ms, p95 376 ms |
 
 The load test found a real bug, in the fakes. Their gateway read its failure mode through the
 connection pool while holding a transaction, so 10+ simultaneous charges exhausted the pool. Pay
