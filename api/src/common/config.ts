@@ -2,6 +2,7 @@
 export const config = {
   fakesUrl: () => process.env.FAKES_URL ?? 'http://localhost:8200',
   adminKey: () => process.env.ADMIN_KEY ?? 'dev-admin-key',
+  fakesControlKey: () => process.env.FAKES_CONTROL_KEY ?? 'dev-control-key',
   webhookSecret: (source: 'fakepay' | 'erp' | 'courier') =>
     process.env[`${source.toUpperCase()}_WEBHOOK_SECRET`] ??
     `dev-${source}-secret`,
