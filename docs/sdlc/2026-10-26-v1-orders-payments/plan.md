@@ -108,7 +108,7 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
   history.
 
 ## Done checklist
-1. [ ] Code per order of work (steps 1–10)
+1. [ ] Code per order of work (steps 1–10; 1–7, 9, 10 done, 8 next)
 2. [ ] Tests: money/VAT, idempotency, checkout races, payments races, delivery engine, destinations,
        failure-injection suite, fakes
 3. [ ] Load test run + README with results (step 11)
@@ -187,3 +187,31 @@ amendments").
   (`src/destinations/{erp,courier,invoicing}`) with a stub handler, so the parallel step-7 agents
   edit only their own folder. Live check in Docker: checkout → pay → webhook → paid → three
   deliveries delivered on attempt 1.
+- Build wave (steps 7, 9, 10): run as the approved 5-agent workflow, one git worktree per agent
+  off `180dbf9`. That commit adds `E2E_SLOT=n` (own test databases, ports 8199/8299 + n×1000 and
+  Redis db 1 + n) so suites run side by side. Merged in order A–E; the only conflict was
+  `app.module.ts`. Inbound ERP and courier webhooks each have their own module
+  (`ErpWebhooksModule`, `CourierWebhookModule`) registered in the HTTP app only, because the worker
+  loads the destination modules. ERP: a malformed event is 400 and not stored; an unknown SKU is
+  422 and recorded; delta 0 is rejected; the refund receipt reads the order's lines. Courier: a
+  status webhook that arrives before our shipments row exists gets a retryable 409
+  `shipment_not_ready`; an unknown order is 422 and recorded; the sequence comes from the status
+  name. Invoicing: the invoice row is committed before the portal call (retries reuse its number);
+  sequence gaps are possible only on a lease-expiry race or a failed insert (documented). Admin:
+  the timeline is grouped by kind rather than one merged list; the selected order is not put in
+  the URL (amendment 13: the UUID is a capability); no web component tests (that would need
+  3 dev dependencies); `/` redirects to `/admin`. Load: the LOAD-50 product is upserted by
+  `load/run.sh` (not the seed); compose gets `name:`, `THROTTLE_LIMIT` passthrough and a `k6`
+  service (profile `load`).
+- Bugs found in the wave, fixed with the bugfix procedure (failing test committed first):
+  (1) fakes released held webhooks ordered by `createdAt`, which ties within a millisecond, so
+  the courier out-of-order test failed about 1 run in 12. Fix: a `seq` serial column. (2) The
+  fakes read the system mode through the global pool while holding a transaction, so 10 or more
+  concurrent charges exhausted the pool and FakePay stalled (load test pay p50 5.2 s, 41 of 50
+  settled by reconciliation). Fix: read the mode through the open transaction. Now pay p50 is
+  322 ms and a full load run takes 4 s. (3) The web font variable referenced itself (shadcn init),
+  so the page fell back to a serif font.
+- Checked in Chrome: key entry, orders list, timeline (payment, webhooks, outbox, deliveries,
+  shipment, invoice); ERP `down` → 8 attempts → dead letter → ERP `ok` from the page → Replay →
+  delivered, with exactly one sale in the ERP ledger. No console errors. The 375px check is not
+  done yet (the window would not resize).
