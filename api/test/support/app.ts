@@ -4,14 +4,14 @@ import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/prisma/prisma.service.js';
 import { seed } from '../../src/seed/seed.js';
 import { Clock, type FixedClock } from '../../src/common/clock.js';
-import { STORE_PORT } from './fakes.js';
+import { FAKES_PORT, STORE_PORT } from './fakes.js';
 
 export const CONTROL = { 'X-Control-Key': 'dev-control-key' };
 export const fakes = (
   path: string,
   init: { method?: string; body?: string } = {},
 ) =>
-  fetch(`http://127.0.0.1:8299${path}`, {
+  fetch(`http://127.0.0.1:${FAKES_PORT}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...CONTROL },
   });

@@ -1,20 +1,21 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
+import { dbName, SLOT } from './slot.js';
 
 const ADMIN_URL =
   process.env.TEST_ADMIN_DATABASE_URL ??
   'postgresql://postgres:postgres@localhost:5436/postgres';
 const FAKES_DIR = resolve(__dirname, '../../../fakes');
-export const FAKES_PORT = 8299;
-export const STORE_PORT = 8199; // test apps that need webhooks listen here
+export const FAKES_PORT = 8299 + SLOT * 1000;
+export const STORE_PORT = 8199 + SLOT * 1000; // test apps that need webhooks listen here
 
 /**
  * Vitest global setup: the real fakes app (built from ../fakes) on its own throwaway database,
  * sending webhooks to the test app on STORE_PORT.
  */
 export default async function setup(): Promise<() => Promise<void>> {
-  const name = 'fakes_for_api_test';
+  const name = dbName('fakes_for_api_test');
   const url = ADMIN_URL.replace(/\/[^/]+$/, `/${name}`);
   const admin = new Client({ connectionString: ADMIN_URL });
   await admin.connect();
