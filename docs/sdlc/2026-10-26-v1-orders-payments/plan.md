@@ -108,7 +108,7 @@ once step 6 is merged: the proposed **build workflow** runs them as 5 parallel a
   history.
 
 ## Done checklist
-1. [ ] Code per order of work (steps 1–10; 1–7, 9, 10 done, 8 next)
+1. [x] Code per order of work (steps 1–10)
 2. [ ] Tests: money/VAT, idempotency, checkout races, payments races, delivery engine, destinations,
        failure-injection suite, fakes
 3. [ ] Load test run + README with results (step 11)
@@ -215,3 +215,11 @@ amendments").
   shipment, invoice); ERP `down` → 8 attempts → dead letter → ERP `ok` from the page → Replay →
   delivered, with exactly one sale in the ERP ledger. No console errors. The 375px check is not
   done yet (the window would not resize).
+- Step 8: `api/test/failure-injection.e2e-spec.ts`, 15 scenarios end to end (HTTP app + worker
+  relay/consumer + real fakes, modes injected through the fakes' control API). Each asserts durable
+  state and every system's ledger (one charge, one ERP sale, one shipment, one invoice per paid
+  order), with 10 s deadlines and a "no negative stock" check after each. Scenarios already proven
+  in their own files are referenced, not repeated: parallel checkouts and same-key races
+  (checkout), settle vs expiry (payments), refund behind a dead sale (delivery), webhook signature
+  and validation (each destination). The cancel-vs-settle race from amendment 14 is tested as
+  cancel vs pay (20 rounds), because cancel is refused while a payment is pending.
