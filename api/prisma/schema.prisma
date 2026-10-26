@@ -1,0 +1,247 @@
+// Mithal Store orders and payments. Money is integer halalas (1 SAR = 100), VAT included.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  // Pinned: the Docker build generates before tsconfig.json is copied, and Prisma would infer ".ts".
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrderStatus {
+  pending_payment
+  paid
+  cancelled
+  expired
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+}
+
+enum RefundStatus {
+  pending
+  succeeded
+  failed
+}
+
+enum DeliveryStatus {
+  pending
+  delivered
+  dead
+  blocked // waiting on a dead predecessor for the same order and destination
+}
+
+enum Destination {
+  erp
+  courier
+  invoicing
+}
+
+enum IdempotencyStatus {
+  in_progress
+  done
+}
+
+enum InvoiceKind {
+  invoice
+  credit_note
+}
+
+model Product {
+  id           String            @id @default(uuid()) @db.Uuid
+  sku          String            @unique
+  nameAr       String
+  nameEn       String
+  priceHalalas Int // VAT included
+  stock        Int // sellable units; CHECK (stock >= 0) in the migration
+  shortfall    Int               @default(0) // units the ERP removed that orders still hold; repaid by releases and restocks first
+  createdAt    DateTime          @default(now()) @db.Timestamptz(6)
+  orderItems   OrderItem[]
+  adjustments  StockAdjustment[]
+
+  @@map("products")
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  status          OrderStatus @default(pending_payment)
+  customerName    String
+  customerPhone   String
+  city            String
+  subtotalHalalas Int // VAT excluded (total - VAT)
+  vatHalalas      Int
+  totalHalalas    Int
+  expiresAt       DateTime    @db.Timestamptz(6)
+  version         Int         @default(1)
+  createdAt       DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(6)
+  items           OrderItem[]
+  payments        Payment[]
+  shipment        Shipment?
+  invoices        Invoice[]
+
+  @@index([status, expiresAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String  @id @default(uuid()) @db.Uuid
+  orderId          String  @db.Uuid
+  productId        String  @db.Uuid
+  sku              String // snapshot at checkout
+  qty              Int
+  unitPriceHalalas Int // snapshot at checkout, VAT included
+  lineTotalHalalas Int
+  lineVatHalalas   Int
+  order            Order   @relation(fields: [orderId], references: [id])
+  product          Product @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid // also FakePay's merchant reference
+  orderId           String        @db.Uuid
+  providerPaymentId String?       @unique
+  status            PaymentStatus @default(pending)
+  amountHalalas     Int
+  token             String
+  failureReason     String?
+  createdAt         DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
+  order             Order         @relation(fields: [orderId], references: [id])
+  refund            Refund?
+
+  // one pending payment per order: partial unique index in the migrations
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model Refund {
+  id               String       @id @default(uuid()) @db.Uuid // also FakePay's idempotency key
+  paymentId        String       @unique @db.Uuid
+  providerRefundId String?      @unique
+  status           RefundStatus @default(pending)
+  amountHalalas    Int
+  reason           String // admin | order_not_payable
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  payment          Payment      @relation(fields: [paymentId], references: [id])
+
+  @@index([status, updatedAt])
+  @@map("refunds")
+}
+
+model IdempotencyKey {
+  scope          String
+  key            String
+  requestHash    String
+  status         IdempotencyStatus @default(in_progress)
+  responseStatus Int?
+  responseBody   Json?
+  createdAt      DateTime          @default(now()) @db.Timestamptz(6)
+
+  @@id([scope, key])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
+
+model InboundWebhook {
+  id         String   @id @default(uuid()) @db.Uuid
+  source     String // fakepay | erp | courier
+  eventId    String
+  type       String
+  payload    Json
+  status     String // applied | rejected
+  error      String?
+  receivedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([source, eventId])
+  @@map("inbound_webhooks")
+}
+
+model OutboxEvent {
+  id          String     @id @default(uuid()) @db.Uuid
+  type        String // order.created | order.paid | order.expired | order.cancelled | order.refunded
+  orderId     String     @db.Uuid
+  payload     Json
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  publishedAt DateTime?  @db.Timestamptz(6)
+  deliveries  Delivery[]
+
+  @@index([publishedAt, createdAt])
+  @@map("outbox_events")
+}
+
+model Delivery {
+  id            String         @id @default(uuid()) @db.Uuid
+  eventId       String         @db.Uuid
+  orderId       String         @db.Uuid // denormalized for per-order ordering
+  eventType     String
+  destination   Destination
+  status        DeliveryStatus @default(pending)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now()) @db.Timestamptz(6)
+  leaseUntil    DateTime?      @db.Timestamptz(6)
+  lastError     String?
+  externalRef   String?
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(6)
+  event         OutboxEvent    @relation(fields: [eventId], references: [id])
+
+  @@unique([eventId, destination])
+  @@index([status, nextAttemptAt])
+  @@index([orderId, destination])
+  @@map("deliveries")
+}
+
+model StockAdjustment {
+  id           String   @id @default(uuid()) @db.Uuid
+  adjustmentId String   @unique // from the ERP
+  productId    String   @db.Uuid
+  delta        Int // what the ERP asked for
+  applied      Int // what was applied after clamping at 0
+  shortfall    Int      @default(0) // units the ERP removed that were already sold or reserved
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@map("stock_adjustments")
+}
+
+model Shipment {
+  orderId           String   @id @db.Uuid
+  courierShipmentId String   @unique
+  status            String // created | picked_up | in_transit | delivered
+  statusSeq         Int // applied only if newer (out-of-order safe)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+  order             Order    @relation(fields: [orderId], references: [id])
+
+  @@map("shipments")
+}
+
+model Invoice {
+  id                String      @id @default(uuid()) @db.Uuid
+  number            Int         @unique @default(dbgenerated("nextval('invoice_number_seq')"))
+  kind              InvoiceKind
+  orderId           String      @db.Uuid
+  referencesInvoice String?     @db.Uuid // a credit note's invoice
+  subtotalHalalas   Int
+  vatHalalas        Int
+  totalHalalas      Int
+  clearanceId       String? // from the e-invoicing portal
+  issuedAt          DateTime    @default(now()) @db.Timestamptz(6)
+  order             Order       @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId, kind])
+  @@map("invoices")
+}

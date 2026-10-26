@@ -1,0 +1,9 @@
+allowBuilds:
+  '@prisma/engines': true
+  prisma: true
+  # esbuild comes in through the test tooling; its prebuilt binary works without the install script
+  esbuild: false
+  # telemetry pulled in by swagger-ui; not needed
+  '@scarf/scarf': false
+  # optional native msgpack for BullMQ; the pure-JS fallback is used
+  msgpackr-extract: false
